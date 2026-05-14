@@ -1,6 +1,6 @@
 {
-  "name": "Vidyarthi-Bus",
-  "description": "A crowdsourced real-time bus crowd tracking app for rural students.",
+  "name": "Vidyarthi Bus",
+  "description": "Real-time crowdsourced bus tracking for students. Cross-platform PWA with Native Android support via Capacitor.",
   "requestFramePermissions": [
     "geolocation"
   ],

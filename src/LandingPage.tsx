@@ -1,19 +1,99 @@
 import { motion } from 'motion/react';
-import { Bus, ArrowRight, ShieldCheck, Zap, Heart, MapPin, Search, Navigation } from 'lucide-react';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { Bus, ArrowRight, ShieldCheck, Zap, Heart, MapPin, Search, Navigation, AlertCircle } from 'lucide-react';
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { cn } from './lib/utils';
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  useEffect(() => {
+    // Handle redirect result for mobile/native
+    const checkRedirect = async () => {
+      // Use a timeout to prevent hanging if getRedirectResult takes too long
+      const redirectPromise = getRedirectResult(auth);
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
+
+      try {
+        const result = await Promise.race([redirectPromise, timeoutPromise]) as any;
+        if (result) {
+          navigate('/dashboard');
+        }
+      } catch (err: any) {
+        if (err.message === 'timeout') {
+          console.warn('getRedirectResult timed out - moving on');
+          return;
+        }
+        
+        console.error('Redirect result error:', err);
+        // Only show error if it's a real failure, not just a fresh page load
+        if (err.code && err.code !== 'auth/no-current-user') {
+          if (err.code === 'auth/invalid-action-code') {
+            setError('Invalid request. Please try again or open in a standard browser tab.');
+          } else if (err.code === 'auth/unauthorized-domain') {
+            setError('This URL is not authorized in your Firebase Console. Please add this domain to Authentication > Settings > Authorized Domains.');
+          } else if (err.code === 'auth/popup-blocked') {
+            setError('Sign-in popup was blocked. Using redirect instead...');
+            const provider = new GoogleAuthProvider();
+            signInWithRedirect(auth, provider);
+          } else if (err.code === 'auth/internal-error') {
+             setError('Firebase internal error. This often happens if the domain is not authorized or network is slow.');
+          } else {
+            setError(err.message || 'Login failed. Please try again.');
+          }
+        }
+      }
+    };
+    checkRedirect();
+  }, [navigate]);
 
   const handleLogin = async () => {
+    setError(null);
+    setIsLoggingIn(true);
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    
     try {
-      await signInWithPopup(auth, provider);
-      navigate('/dashboard');
-    } catch (err) {
+      // Logic for determining the best login method
+      const isMobileBrowser = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const isInstagramOrWhatsApp = /Instagram|WhatsApp/i.test(navigator.userAgent);
+
+      if (isInstagramOrWhatsApp) {
+        setError("In-app browsers (like WhatsApp/Instagram) often block login. Please open this link in Chrome or Safari.");
+        setIsLoggingIn(false);
+        return;
+      }
+
+      if (Capacitor.isNativePlatform() || isMobileBrowser) {
+        await signInWithRedirect(auth, provider);
+      } else {
+        try {
+          await signInWithPopup(auth, provider);
+          navigate('/dashboard');
+        } catch (popupErr: any) {
+          console.warn('Popup blocked or failed, trying redirect...', popupErr);
+          if (popupErr.code === 'auth/popup-blocked' || popupErr.code === 'auth/cancelled-popup-request') {
+            await signInWithRedirect(auth, provider);
+          } else {
+            throw popupErr;
+          }
+        }
+      }
+    } catch (err: any) {
       console.error(err);
+      if (err.code === 'auth/operation-not-allowed') {
+        setError('Google login is not enabled in the Firebase Console.');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError('Authorized Domain Error: Ensure this URL matches what you added in Firebase Console.');
+      } else {
+        setError(err.message || 'Authentication failed. Please try again.');
+      }
+      setIsLoggingIn(false);
     }
   };
 
@@ -91,13 +171,47 @@ export default function LandingPage() {
             </div>
 
             <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
-              <button 
-                onClick={handleLogin}
-                className="px-12 py-6 bg-slate-950 text-white rounded-[2rem] font-bold text-xl flex items-center justify-center gap-4 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.3)] transition-all hover:bg-slate-900 active:scale-95 hover:shadow-orange-200/50"
-              >
-                Start Tracking
-                <Navigation size={24} strokeWidth={2.5} />
-              </button>
+              <div className="flex flex-col gap-4">
+                <button 
+                  onClick={handleLogin}
+                  disabled={isLoggingIn}
+                  className={cn(
+                    "px-12 py-6 bg-slate-950 text-white rounded-[2rem] font-bold text-xl flex items-center justify-center gap-4 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.3)] transition-all hover:bg-slate-900 active:scale-95 hover:shadow-orange-200/50 min-w-[260px]",
+                    isLoggingIn && "opacity-50 cursor-wait"
+                  )}
+                >
+                  {isLoggingIn ? (
+                    <>
+                      <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      Sign In to Report
+                      <Navigation size={24} strokeWidth={2.5} />
+                    </>
+                  )}
+                </button>
+
+                <button 
+                  onClick={() => navigate('/dashboard')}
+                  className="px-12 py-4 bg-white border-2 border-slate-950 text-slate-950 rounded-[2rem] font-bold text-sm flex items-center justify-center gap-3 transition-all hover:bg-slate-50 active:scale-95 group min-w-[260px]"
+                >
+                  Open Live Tracker (No Login)
+                  <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                </button>
+                
+                {error && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl flex items-start gap-3 text-xs font-bold max-w-sm"
+                  >
+                    <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </motion.div>
+                )}
+              </div>
               
               <div className="flex items-center gap-4 pl-2">
                 <div className="flex -space-x-3">

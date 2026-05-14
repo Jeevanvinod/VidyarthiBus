@@ -3,7 +3,24 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.vidyarthibus.app',
   appName: 'Vidyarthi Bus',
-  webDir: 'dist'
+  webDir: 'dist',
+  server: {
+    androidScheme: 'https'
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 2000,
+      launchAutoHide: true,
+      backgroundColor: "#F59E0B",
+      androidScaleType: "CENTER_CROP",
+      showSpinner: true,
+      androidSpinnerStyle: "large",
+      spinnerColor: "#ffffff"
+    },
+    StatusBar: {
+      backgroundColor: "#F59E0B"
+    }
+  }
 };
 
 export default config;

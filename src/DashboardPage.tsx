@@ -8,6 +8,8 @@ import { cn, formatTimeAgo } from './lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import { triggerHaptic } from './lib/haptics';
+import { ImpactStyle } from '@capacitor/haptics';
 
 // Fix for default marker icons in Leaflet with React
 const getMarkerIcon = (status: CrowdStatus) => {
@@ -166,11 +168,16 @@ export default function DashboardPage({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  const handleSignOut = async () => {
-    await signOut(auth);
-    navigate('/');
+  const handleAuthAction = async () => {
+    if (user) {
+      await signOut(auth);
+      navigate('/');
+    } else {
+      navigate('/login');
+    }
   };
 
+  const user = auth.currentUser;
   const currentStatus = reports.length > 0 ? reports[0].status : 'none';
   const lastReportTime = reports.length > 0 ? reports[0].timestamp.toMillis() : null;
   const latestReportWithLocation = reports.find(r => r.location);
@@ -225,10 +232,12 @@ export default function DashboardPage({ isAdmin }: { isAdmin: boolean }) {
                  </button>
                )}
                <button 
-                onClick={handleSignOut}
-                className="w-10 h-10 flex items-center justify-center bg-slate-50 text-slate-400 rounded-xl hover:text-rose-500 transition-colors"
+                onClick={handleAuthAction}
+                className={cn("w-10 h-10 flex items-center justify-center rounded-xl transition-colors", 
+                  user ? "bg-slate-50 text-slate-400 hover:text-rose-500" : "bg-slate-900 text-white hover:bg-slate-800")}
+                title={user ? "Sign Out" : "Sign In to Report"}
                >
-                 <LogOut size={18} strokeWidth={2.5} />
+                 {user ? <LogOut size={18} strokeWidth={2.5} /> : <User size={18} strokeWidth={2.5} />}
                </button>
             </div>
           </div>
@@ -312,7 +321,10 @@ export default function DashboardPage({ isAdmin }: { isAdmin: boolean }) {
                   <motion.button 
                     initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    onClick={() => setShowMap(!showMap)}
+                    onClick={() => {
+                      triggerHaptic(ImpactStyle.Medium);
+                      setShowMap(!showMap);
+                    }}
                     className={cn(
                       "px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-full transition-all flex items-center gap-1.5 shadow-md active:scale-95",
                       showMap 
@@ -441,7 +453,10 @@ export default function DashboardPage({ isAdmin }: { isAdmin: boolean }) {
                             ) : <div />}
                             
                             <button 
-                              onClick={() => setShowMap(true)}
+                              onClick={() => {
+                                triggerHaptic(ImpactStyle.Heavy);
+                                setShowMap(true);
+                              }}
                               className="flex items-center gap-2.5 px-5 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all shadow-lg active:scale-95 bg-orange-600 text-white shadow-orange-200"
                             >
                               <Navigation size={14} strokeWidth={3} />
@@ -522,8 +537,16 @@ export default function DashboardPage({ isAdmin }: { isAdmin: boolean }) {
                       animate={{ opacity: 1, y: 0 }}
                       className="space-y-4"
                     >
-                      <div className="flex items-center gap-2 mb-2">
-                         <h2 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em]">Quick Report</h2>
+                      <div className="flex items-center justify-between mb-2">
+                         <h2 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em]">Quick Report Detector</h2>
+                         {!user && (
+                           <button 
+                             onClick={() => navigate('/login')}
+                             className="text-[9px] font-black uppercase text-orange-600 hover:underline"
+                           >
+                             Sign in to report
+                           </button>
+                         )}
                       </div>
                       
                       <div className="grid grid-cols-3 gap-4">
@@ -534,13 +557,14 @@ export default function DashboardPage({ isAdmin }: { isAdmin: boolean }) {
                         ].map((btn) => (
                           <motion.button
                             key={btn.id}
-                            whileHover={{ y: -6, scale: 1.02 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleReport(btn.id as CrowdStatus)}
+                            whileHover={user ? { y: -6, scale: 1.02 } : {}}
+                            whileTap={user ? { scale: 0.95 } : {}}
+                            onClick={() => user ? handleReport(btn.id as CrowdStatus) : navigate('/login')}
                             disabled={isReporting}
                             className={cn(
-                              "flex flex-col items-center gap-3 p-6 rounded-[2.5rem] bg-white border border-slate-100 transition-all duration-500 relative overflow-hidden group shadow-sm hover:shadow-2xl hover:shadow-slate-100",
-                              isReporting && "opacity-30 grayscale cursor-not-allowed"
+                              "flex flex-col items-center gap-3 p-6 rounded-[2.5rem] bg-white border border-slate-100 transition-all duration-500 relative overflow-hidden group shadow-sm",
+                              user && "hover:shadow-2xl hover:shadow-slate-100",
+                              (!user || isReporting) && "opacity-50 grayscale-0"
                             )}
                           >
                             <div className={cn("w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center transition-all duration-500 group-hover:scale-110", btn.text)}>
@@ -549,7 +573,7 @@ export default function DashboardPage({ isAdmin }: { isAdmin: boolean }) {
                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-900 leading-none">{btn.label}</span>
                             
                             {/* Hover Reveal Pattern */}
-                            <div className={cn("absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity duration-500", btn.gradient)} />
+                            {user && <div className={cn("absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r opacity-0 group-hover:opacity-100 transition-opacity duration-500", btn.gradient)} />}
                           </motion.button>
                         ))}
                       </div>
