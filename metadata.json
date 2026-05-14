@@ -1,0 +1,10 @@
+{
+  "name": "Vidyarthi-Bus",
+  "description": "A crowdsourced real-time bus crowd tracking app for rural students.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "real-time-collaboration"
+  ]
+}

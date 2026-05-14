@@ -1,0 +1,5 @@
+package com.vidyarthibus.app;
+
+import com.getcapacitor.BridgeActivity;
+
+public class MainActivity extends BridgeActivity {}

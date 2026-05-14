@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "Route": {
+      "title": "Bus Route",
+      "description": "A specific bus route for college transport.",
+      "type": "object",
+      "properties": {
+        "number": { "type": "string", "description": "Bus identification number" },
+        "name": { "type": "string", "description": "Route destination or name" },
+        "sharedAutos": {
+          "type": "array",
+          "description": "List of alternative shared auto contacts"
+        }
+      },
+      "required": ["number", "name"]
+    },
+    "CrowdReport": {
+      "title": "Crowd Report",
+      "description": "A report of the crowd level on a bus.",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["empty", "seated", "full"],
+          "description": "The current crowd status"
+        },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the report was made" },
+        "userId": { "type": "string", "description": "ID of the student reporting" },
+        "location": { "type": "object", "description": "Geopoint of the reporter" },
+        "routeId": { "type": "string", "description": "The route ID this report belongs to" }
+      },
+      "required": ["status", "timestamp", "userId", "routeId"]
+    },
+    "Admin": {
+      "title": "Administrator",
+      "description": "A user with administrative privileges.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin"] }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "routes": {
+      "schema": "Route",
+      "description": "Collection of all available bus routes"
+    },
+    "routes/{routeId}/reports": {
+      "schema": "CrowdReport",
+      "description": "Sub-collection of crowd reports for a specific route"
+    },
+    "admins": {
+      "schema": "Admin",
+      "description": "Access control list for administrators"
+    }
+  }
+}

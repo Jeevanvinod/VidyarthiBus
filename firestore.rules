@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == "jeevanvinod2004@gmail.com"
+      );
+    }
+
+    // Global Safety Net (at the bottom or specific)
+    match /routes/{routeId} {
+      allow get, list: if true;
+      allow write: if isAdmin();
+      
+      match /reports/{reportId} {
+        allow get, list: if true;
+        allow create: if isSignedIn() 
+          && isValidId(routeId)
+          && isValidReport(incoming())
+          && exists(/databases/$(database)/documents/routes/$(routeId));
+        
+        allow update, delete: if false;
+      }
+    }
+
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+      allow write: if request.auth.token.email == "jeevanvinod2004@gmail.com";
+    }
+
+    // Default Deny for everything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Validation Helpers ---
+    function isValidReport(data) {
+      return data.keys().hasAll(['status', 'timestamp', 'userId', 'routeId'])
+          && data.keys().size() == 5 // status, timestamp, userId, routeId, location (optional)
+          && data.status in ['empty', 'seated', 'full']
+          && data.timestamp == request.time
+          && data.userId == request.auth.uid
+          && data.routeId is string
+          && (data.get('location', null) == null || (data.location is latlng));
+    }
+  }
+}
