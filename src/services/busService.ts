@@ -70,16 +70,20 @@ export const busService = {
       }
     ];
 
-    for (const route of initialRoutes) {
-      await addDoc(collection(db, ROUTES_COLLECTION), route);
-    }
-    
-    // Seed the first user as admin for development if they don't exist
-    if (auth.currentUser) {
-      await setDoc(doc(db, ADMINS_COLLECTION, auth.currentUser.uid), {
-        email: auth.currentUser.email,
-        role: 'admin'
-      });
+    try {
+      for (const route of initialRoutes) {
+        await addDoc(collection(db, ROUTES_COLLECTION), route);
+      }
+      
+      // Seed the first user as admin for development if they don't exist
+      if (auth.currentUser) {
+        await setDoc(doc(db, ADMINS_COLLECTION, auth.currentUser.uid), {
+          email: auth.currentUser.email,
+          role: 'admin'
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, ROUTES_COLLECTION);
     }
   },
 

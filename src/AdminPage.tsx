@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bus, Plus, Trash2, Shield, ArrowLeft, LogOut, Phone, User, Check, X, Settings, BarChart3 } from 'lucide-react';
 import { busService } from './services/busService';
-import { Route, SharedAuto, auth } from './lib/firebase';
+import { Route, SharedAuto, auth, FirestoreErrorInfo } from './lib/firebase';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { cn } from './lib/utils';
+import { useNotification } from './components/NotificationProvider';
 
 export default function AdminPage() {
   const [routes, setRoutes] = useState<Route[]>([]);
@@ -15,29 +16,52 @@ export default function AdminPage() {
   const [autos, setAutos] = useState<SharedAuto[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
+
+  const parseFirebaseError = (error: any): string => {
+    try {
+      const info = JSON.parse(error.message) as FirestoreErrorInfo;
+      if (info.error.includes('permission-denied')) {
+        return "Unauthorized. Access restricted to Hub Directors.";
+      }
+      return info.error;
+    } catch (e) {
+      return error.message || "An unexpected error occurred.";
+    }
+  };
 
   useEffect(() => {
     loadRoutes();
-  }, []);
+  }, [showNotification]);
 
   const loadRoutes = async () => {
-    const data = await busService.getRoutes();
-    setRoutes(data);
-    setLoading(false);
+    try {
+      const data = await busService.getRoutes();
+      setRoutes(data);
+    } catch (err) {
+      showNotification(parseFirebaseError(err), 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddRoute = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRoute.number || !newRoute.name) return;
 
-    await busService.addRoute({
-      ...newRoute,
-      sharedAutos: autos
-    });
-    setNewRoute({ number: '', name: '' });
-    setAutos([]);
-    setShowAddForm(false);
-    loadRoutes();
+    try {
+      await busService.addRoute({
+        ...newRoute,
+        sharedAutos: autos
+      });
+      setNewRoute({ number: '', name: '' });
+      setAutos([]);
+      setShowAddForm(false);
+      loadRoutes();
+      showNotification("Route provisioned successfully!", "success");
+    } catch (err) {
+      showNotification(parseFirebaseError(err), 'error');
+    }
   };
 
   const handleAddAuto = () => {
@@ -48,8 +72,13 @@ export default function AdminPage() {
 
   const handleDeleteRoute = async (id: string) => {
     if (confirm('Are you sure you want to delete this route?')) {
-      await busService.deleteRoute(id);
-      loadRoutes();
+      try {
+        await busService.deleteRoute(id);
+        loadRoutes();
+        showNotification("Route removed from fleet.", "info");
+      } catch (err) {
+        showNotification(parseFirebaseError(err), 'error');
+      }
     }
   };
 

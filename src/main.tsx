@@ -4,12 +4,15 @@ import App from './App.tsx';
 import 'leaflet/dist/leaflet.css';
 import './index.css';
 import { registerSW } from 'virtual:pwa-register';
+import { NotificationProvider } from './components/NotificationProvider';
 
 // Register service worker for PWA support
 registerSW({ immediate: true });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <NotificationProvider>
+      <App />
+    </NotificationProvider>
   </StrictMode>,
 );

@@ -6,9 +6,11 @@ import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { cn } from './lib/utils';
+import { useNotification } from './components/NotificationProvider';
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
   const [error, setError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 

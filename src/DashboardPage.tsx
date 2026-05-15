@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bus, MapPin, AlertCircle, Phone, Info, Map as MapIcon, ChevronRight, User, Users, CheckCircle2, Shield, LogOut, Navigation, Clock, Activity, X } from 'lucide-react';
-import { auth, Route, CrowdReport, CrowdStatus } from './lib/firebase';
+import { auth, Route, CrowdReport, CrowdStatus, FirestoreErrorInfo } from './lib/firebase';
 import { signOut } from 'firebase/auth';
 import { busService } from './services/busService';
 import { cn, formatTimeAgo } from './lib/utils';
@@ -10,6 +10,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { triggerHaptic } from './lib/haptics';
 import { ImpactStyle } from '@capacitor/haptics';
+import { useNotification } from './components/NotificationProvider';
 
 // Fix for default marker icons in Leaflet with React
 const getMarkerIcon = (status: CrowdStatus) => {
@@ -102,10 +103,25 @@ export default function DashboardPage({ isAdmin }: { isAdmin: boolean }) {
   const [reports, setReports] = useState<CrowdReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [isReporting, setIsReporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [showMap, setShowMap] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
+
+  const parseFirebaseError = (error: any): string => {
+    try {
+      const info = JSON.parse(error.message) as FirestoreErrorInfo;
+      if (info.error.includes('permission-denied')) {
+        return "Access denied. Please sign in to perform this action.";
+      }
+      if (info.error.includes('unavailable')) {
+        return "Network connection issue. Please check your internet.";
+      }
+      return info.error;
+    } catch (e) {
+      return typeof error === 'string' ? error : error.message || "An unexpected error occurred.";
+    }
+  };
 
   useEffect(() => {
     busService.getRoutes().then(data => {
@@ -113,10 +129,10 @@ export default function DashboardPage({ isAdmin }: { isAdmin: boolean }) {
       setLoading(false);
     }).catch(err => {
       console.error(err);
-      setError("Failed to load routes.");
+      showNotification(parseFirebaseError(err), 'error');
       setLoading(false);
     });
-  }, []);
+  }, [showNotification]);
 
   // For the Global Map: Aggregate latest reports from all routes
   const [allLatestReports, setAllLatestReports] = useState<CrowdReport[]>([]);
@@ -161,8 +177,10 @@ export default function DashboardPage({ isAdmin }: { isAdmin: boolean }) {
         console.warn("Location unavailable.");
       }
       await busService.submitReport(selectedRoute.id, status, location);
+      showNotification("Report submitted successfully!", "success");
+      triggerHaptic(ImpactStyle.Light);
     } catch (err) {
-      setError("Failed to submit report");
+      showNotification(parseFirebaseError(err), 'error');
     } finally {
       setIsReporting(false);
     }
@@ -244,16 +262,6 @@ export default function DashboardPage({ isAdmin }: { isAdmin: boolean }) {
         </header>
 
         <main className="flex-1 p-0 flex flex-col overflow-hidden">
-          {error && (
-            <motion.div 
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="m-8 p-4 bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl flex items-center gap-3 text-sm font-bold"
-            >
-              <AlertCircle size={18} />
-              {error}
-            </motion.div>
-          )}
 
           {viewMode === 'map' ? (
              <div className="flex-1 relative w-full h-full min-h-0">
